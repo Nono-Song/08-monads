@@ -47,7 +47,14 @@ according to the examples below.
 -- Nothing
 
 parseWeather :: Map String String -> Maybe Weather
-parseWeather = undefined
+parseWeather m = do
+  dayStr <- Map.lookup "day" m
+  maxTempStr <- Map.lookup "maxTemp" m
+  minTempStr <- Map.lookup "minTemp" m
+  day <- Text.readMaybe dayStr
+  maxTemp <- Text.readMaybe maxTempStr
+  minTemp <- Text.readMaybe minTempStr
+  return Weather {dayNumber= day, maxTemp=maxTemp, minTemp= minTemp}
 
 {-
 Part 2
@@ -69,7 +76,9 @@ One can be defined using `(>>=)` from the `Maybe` monad, and one cannot. Which i
 -- >>> firstJust Nothing Nothing
 -- Nothing
 firstJust :: Maybe a -> Maybe a -> Maybe a
-firstJust = undefined
+firstJust x y = case x of
+  Just a -> Just a
+  Nothing -> y
 
 -- | Ensure that both Maybes are 'Just' and retain the first one
 --
@@ -78,8 +87,19 @@ firstJust = undefined
 -- >>> sequenceFirst Nothing (Just 'a')
 -- Nothing
 -- >>> sequenceFirst (Just 1) Nothing
--- Nothing
+-- Nothing 
 -- >>> sequenceFirst Nothing Nothing
 -- Nothing
+{-
 sequenceFirst :: Maybe a -> Maybe b -> Maybe a
-sequenceFirst = undefined
+sequenceFirst x y = 
+  case x of 
+    Nothing -> Nothing
+    Just a -> case y of
+      Just b -> Just a
+      Nothing -> Nothing
+-}
+-- 因为我们想要两个 argument 都不是 nothing
+-- 所以 do syntax 或者说 binding 就比较合适
+sequenceFirst :: Maybe a -> Maybe b -> Maybe a
+sequenceFirst x y = x >>= (\a -> y >>= (\b -> Just a))

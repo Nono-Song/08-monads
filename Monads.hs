@@ -397,6 +397,8 @@ zipTree5 = go
   where
     go (Leaf a) (Leaf b) = return (Leaf (a, b))
     go (Branch l r) (Branch l' r') = do
+      -- "bind" is doing some pattern matching
+      -- Note that go l l' is Maybe Tree but x is just a tree
       t1 <- go l l'
       t2 <- go r r'
       return (Branch t1 t2)
@@ -569,6 +571,13 @@ zapMonad f x =
             x
               >>= (\z -> return (y z))
         )
+
+zapMonad' :: (Monad m) => m (a -> b) -> m a -> m b
+zapMonad' mf ma = do
+  f <- mf
+  a <- ma
+  return (f a)
+  
 
 {-
 Note that `fmapMonad` is called `liftM` and `zapMonad` is called `ap` in the
@@ -933,6 +942,7 @@ lists.
       pure :: a -> [a]
       pure x = [x]
 
+      list of functions, a list of a convert to a list of b
       (<*>) :: [a -> b] -> [a] -> [b]
       fs <*> xs = [f x | f <- fs, x <- xs]
 
@@ -944,7 +954,16 @@ at the definition above to see what could makes sense.
 
 -- >>> pairs6 [1,2,3] [1,2,3]
 pairs6 :: [a] -> [b] -> [(a, b)]
-pairs6 xs ys = undefined
+pairs6 xs ys = [(,)] <*> xs <*> ys
+
+pairs6' :: [a] -> [b] -> [(a, b)]
+pairs6' xs ys = pure (,) <*> xs <*> ys
+
+pairs6'' :: Applicative f => f a -> f b -> f (a,b)
+pairs6'' xs ys = pure (,) <*> xs <*> ys
+
+pairs6''' :: Applicative f => f a -> f b -> f (a,b)
+pairs6''' xs ys = (,) <$> xs <*> ys
 
 {-
 Once you get `pairs6`, try inlining the definitions of `pure` and `<*>` to see
