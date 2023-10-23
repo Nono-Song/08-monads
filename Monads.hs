@@ -8,8 +8,8 @@ date: October 23, 2023
 module Monads where
 
 import Control.Monad (guard)
-import qualified Data.List as List
-import qualified Data.Maybe as Maybe
+import Data.List qualified as List
+import Data.Maybe qualified as Maybe
 import Prelude hiding ((>>))
 
 {-
@@ -28,7 +28,9 @@ in the tree.
 -}
 
 zipTree :: Tree a -> Tree b -> Tree (a, b)
-zipTree = undefined
+zipTree (Leaf x) (Leaf y) = Leaf (x, y)
+zipTree (Branch x1 y1) (Branch x2 y2) = Branch (zipTree x1 x2) (zipTree y1 y2)
+zipTree _ _ = undefined
 
 {-
         o                     o                      o
@@ -46,6 +48,7 @@ testZip0 =
     == Branch (Leaf ("a", 0)) (Branch (Leaf ("b", 1)) (Leaf ("c", 2)))
 
 -- >>> zipTree (Branch (Leaf "a") (Branch (Leaf "b") (Leaf "c"))) (Branch (Leaf 0) (Branch (Leaf 1) (Leaf 2)))
+-- Branch (Leaf ("a",0)) (Branch (Leaf ("b",1)) (Leaf ("c",2)))
 
 {-
 Keeping track of errors
@@ -63,7 +66,15 @@ Let's rewrite it so that the partiality is explicit in the type.
 -}
 
 zipTree1 :: Tree a -> Tree b -> Maybe (Tree (a, b))
-zipTree1 = undefined
+zipTree1 (Leaf x) (Branch l r) = Nothing
+zipTree1 (Branch l r) (Leaf x) = Nothing
+zipTree1 (Leaf x) (Leaf y) = Just (Leaf (x, y))
+zipTree1 (Branch l1 r1) (Branch l2 r2) =
+  case zipTree1 l1 l2 of
+    Nothing -> Nothing
+    Just t1 -> case zipTree1 r1 r2 of
+      Nothing -> Nothing
+      Just t2 -> Just (Branch t1 t2)
 
 {-
 This function is going to be our inspiration for the following development.
@@ -161,7 +172,7 @@ Can you identify any patterns in the code?
 Looking closely for patterns
 ----------------------------
 
-*  We return a value in two places in this function.  See the lines
+\*  We return a value in two places in this function.  See the lines
    marked `(*)` below.
 
 ~~~~~~~~~{.haskell}
@@ -193,7 +204,7 @@ retrn :: a -> Maybe a
 retrn = Just
 
 {-
-* We also *use* a pattern in two cases in the code. In two cases, we
+\* We also *use* a pattern in two cases in the code. In two cases, we
   pattern match the result of a recursive call, and if it is successful,
   we use that successful result later on in the computation. See the
   parts marked `(*)` below.
@@ -271,6 +282,7 @@ zipTree3 = go
     go _ _ = Nothing
 
 -- >>> testZip zipTree3
+-- True
 
 {-
 Do the names `retrn` and `bind` sound familiar to you? Do their types look
@@ -336,6 +348,7 @@ zipTree4 = go
     go _ _ = Nothing
 
 -- >>> testZip zipTree4
+-- True
 
 {-
 What is the benefit to writing the code this way?
@@ -384,10 +397,13 @@ zipTree5 = go
   where
     go (Leaf a) (Leaf b) = return (Leaf (a, b))
     go (Branch l r) (Branch l' r') = do
-      undefined
+      t1 <- go l l'
+      t2 <- go r r'
+      return (Branch t1 t2)
     go _ _ = Nothing
 
 -- >>> testZip zipTree5
+-- True
 
 {-
 Nice!
@@ -423,7 +439,7 @@ capabilities...
 That brings us to a derived monad operator, called "sequence":
 -}
 
-(>>) :: Monad m => m a -> m b -> m b
+(>>) :: (Monad m) => m a -> m b -> m b
 m1 >> m2 = m1 >>= const m2
 
 {-
@@ -495,6 +511,7 @@ zipTree6 = go
     go _ _ = Nothing
 
 -- >>> testZip zipTree6
+-- True
 
 {-
 The `<*>` operator lets us "lift" the `Branch` data constructor to the
@@ -540,13 +557,18 @@ right. )
 -}
 
 fmapMonad :: (Monad m) => (a -> b) -> m a -> m b
-fmapMonad = undefined
+fmapMonad f x = x >>= (\y -> return (f y))
 
 pureMonad :: (Monad m) => a -> m a
-pureMonad = undefined
+pureMonad = return
 
 zapMonad :: (Monad m) => m (a -> b) -> m a -> m b
-zapMonad = undefined
+zapMonad f x =
+  f
+    >>= ( \y ->
+            x
+              >>= (\z -> return (y z))
+        )
 
 {-
 Note that `fmapMonad` is called `liftM` and `zapMonad` is called `ap` in the
@@ -588,8 +610,14 @@ should *not* be recursive.
 -- >>> pairs0 [1,2,3] [5,6,7]
 -- [(1,5),(1,6),(1,7),(2,5),(2,6),(2,7),(3,5),(3,6),(3,7)]
 
+-- >>> pairs0 [1,2,3] [4,5,6]
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
+
 pairs0 :: [a] -> [b] -> [(a, b)]
-pairs0 xs ys = undefined
+pairs0 xs ys = concat [map (x,) ys | x <- xs]
+
+pairs0' :: [a] -> [b] -> [(a, b)]
+pairs0' xs ys = undefined
 
 testPairs :: ([Int] -> [Int] -> [(Int, Int)]) -> Bool
 testPairs ps =
@@ -716,7 +744,7 @@ Rewrite `pairs` using `>>=` and return
 -- >>> pairs2 [1,2,3] [5,6,7]
 -- [(1,5),(1,6),(1,7),(2,5),(2,6),(2,7),(3,5),(3,6),(3,7)]
 pairs2 :: [a] -> [b] -> [(a, b)]
-pairs2 xs ys = undefined
+pairs2 xs ys = xs >>= (\x -> ys >>= (\y -> [(x, y)]))
 
 {-
 Rewrite again using do notation
@@ -725,7 +753,10 @@ Rewrite again using do notation
 -- >>> pairs3 [1,2,3] [5,6,7]
 -- [(1,5),(1,6),(1,7),(2,5),(2,6),(2,7),(3,5),(3,6),(3,7)]
 pairs3 :: [a] -> [b] -> [(a, b)]
-pairs3 xs ys = undefined
+pairs3 xs ys = do
+  x <- xs
+  y <- ys
+  return (x, y)
 
 {-
 Make sure that it still works.
@@ -759,6 +790,7 @@ filter out some of the results
 -}
 
 -- >>> pairs5 [1,2,3] [1,2,3]
+-- [(1,2),(1,3),(2,1),(2,3),(3,1),(3,2)]
 pairs5 :: [Int] -> [Int] -> [(Int, Int)]
 pairs5 xs ys = [(x, y) | x <- xs, y <- ys, x /= y]
 
@@ -796,7 +828,7 @@ we use the `()` value.
 In fact, there is a formal connection between the `do` notation and
 the comprehension notation.  Both are simply different shorthands for
 repeated use of the `>>=` operator for lists.  Indeed, the language
-*Gofer*, one of the precursors to Haskell, permitted the comprehension
+\*Gofer*, one of the precursors to Haskell, permitted the comprehension
 notation to be used with *any* monad.  For simplicity, Haskell only
 allows comprehension to be used with lists.
 
@@ -805,7 +837,7 @@ other contexts.
 
 What are some other examples that can be written using list comprehension?
 
-* We can find out the smallest number colors that can color a few southern states so that
+\* We can find out the smallest number colors that can color a few southern states so that
   neighboring states are not the same color.
 
 Here are some colors
@@ -840,6 +872,7 @@ And this code finds the smallest list of colors that can do so:
 -}
 
 -- >>> colorsNeeded
+-- Just [Red,Green,Blue]
 colorsNeeded :: Maybe [Color]
 colorsNeeded = List.find (not . null . stateColors) cs
   where
@@ -850,39 +883,43 @@ colorsNeeded = List.find (not . null . stateColors) cs
 Other examples
 --------------
 
-* Rewrite the `map` function using a list comprehension.
+\* Rewrite the `map` function using a list comprehension.
 -}
 
 -- >>> map' (+1) [1,2,3]
+-- [2,3,4]
 map' :: (a -> b) -> [a] -> [b]
-map' f xs = undefined
+map' f xs = [f x | x <- xs]
 
 {-
-* Create a list of all pairs where the first component is from the first list,
+\* Create a list of all pairs where the first component is from the first list,
   the second component is from the second list, and where the first component
   is strictly less than the second.
 -}
 
 -- >>> firstLess [1,2,3] [1,2,3]
-firstLess :: Ord a => [a] -> [a] -> [(a, a)]
-firstLess = undefined
+-- [(1,2),(1,3),(2,3)]
+firstLess :: (Ord a) => [a] -> [a] -> [(a, a)]
+firstLess xs ys = [(x, y) | x <- xs, y <- ys, x < y]
 
 {-
 Now rewrite `map'` and `firstLess` using do notation (don't forget `guard` above)
 -}
 
 map1 :: (a -> b) -> [a] -> [b]
-map1 = undefined
+map1 f xs = do
+  x <- xs
+  return (f x)
 
-firstLess1 :: Ord a => [a] -> [a] -> [(a, a)]
+firstLess1 :: (Ord a) => [a] -> [a] -> [(a, a)]
 firstLess1 xs ys = undefined
 
 {-
-* Rewrite `filter`, using a guarded list comprehension.
+\* Rewrite `filter`, using a guarded list comprehension.
 -}
 
 filter' :: (a -> Bool) -> [a] -> [a]
-filter' f xs = undefined
+filter' f xs = [x | x <- xs, f x]
 
 {-
 The List Applicative
