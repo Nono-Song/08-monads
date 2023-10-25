@@ -66,8 +66,12 @@ onlyUpper = filter Char.isUpper
 -- >>> mapM maybeUpper "sa2ljsd"
 -- Nothing
 
--- >>> mapM onlyUpper ["QuickCheck", "Haskell"]
--- ["QH","CH"]
+-- >>> mapM onlyUpper ["QuickCheck"]
+-- ["Q","C"]
+
+
+-- >>> mapM onlyUpper ["QuickCheck", "Haskell", "ABC"]
+-- ["QHA","QHB","QHC","CHA","CHB","CHC"]
 -- >>> mapM onlyUpper ["QuickCheck", ""]
 -- []
 
@@ -78,29 +82,73 @@ the mapped function can return its value in some monad m.
 
 -- (b)
 
+-- >>> foldM safeDiv 1 [1,2,1]
+-- Just 0.5
+
+-- >>> foldM (\xs x -> Just (x : xs)) [] "abcd"
+-- Just "dcba"
+
+-- >>> sequence [Just 1, Just 2, Just 3]
+-- Just [1,2,3]
+
+-- >>> sequence [Just 1, Nothing, Just 2]
+-- Nothing
+
+-- >>> join (Just (Just 2))
+-- Just 2
+
+-- >>> liftM (\x -> x + 1) (Just 3)
+-- Just 4
+
+-- >>> liftM2 (\x -> \y -> x + y) (Just 10) (Just 2)
+-- Just 12
+
+safeDiv :: (Eq a, Fractional a) => a -> a -> Maybe a
+safeDiv a 0 = Nothing
+safeDiv a b = Just (a / b)
+
 foldM :: Monad m => (a -> b -> m a) -> a -> [b] -> m a
-foldM = error "foldM: unimplemented"
+foldM f accu [] = return accu
+foldM f accu (x : xs) = do
+  a <- f accu x
+  b <- foldM f a xs
+  return b
+
+
 
 -- (c)
 
 sequence :: Monad m => [m a] -> m [a]
-sequence = error "sequence: unimplemented"
+sequence [] = return []
+sequence (x : xs) = do
+  a <- x
+  b <- sequence xs
+  return (a : b)
+
 
 -- (d) This one is the Kleisli "fish operator"
 --
 
 (>=>) :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
-(>=>) = error ">=>: unimplemented"
+(>=>) mfa mfb a = do
+  b <- mfa a
+  c <- mfb b
+  return c
 
 -- (e)
 
 join :: (Monad m) => m (m a) -> m a
-join = error "join: unimplemented"
+join x = do
+  ma <- x
+  a <- ma
+  return a
 
 -- (f) Define the 'liftM' function
 
 liftM :: (Monad m) => (a -> b) -> m a -> m b
-liftM = error "liftM: unimplemented"
+liftM f ma = do
+  a <- ma
+  return (f a)
 
 -- Thought question: Is the type of `liftM` similar to that of another
 -- function we've discussed recently?
@@ -108,7 +156,10 @@ liftM = error "liftM: unimplemented"
 -- (g) And its two-argument version ...
 
 liftM2 :: (Monad m) => (a -> b -> r) -> m a -> m b -> m r
-liftM2 = error "liftM2: unimplemented"
+liftM2 f ma mb = do
+  a <- ma
+  b <- mb
+  return (f a b)
 
 {-
 -------------------------------------------------------------------------

@@ -80,7 +80,7 @@ returns the message above.
 -}
 
 -- >>> zipTree5 t1 t2
--- Prelude.undefined
+-- Left "Tree mismatch, found Leaf 2 and Branch (Leaf 'b') (Leaf 'c')"
 
 {-
 But before you do that, take a
@@ -108,8 +108,10 @@ to be passed to the next computation, via `bind`.
 
 instance Monad (Either a) where
   return :: a2 -> Either a1 a2
-  return = undefined
-  (>>=) = undefined
+  return = Right
+  (>>=) :: Either a1 a2 -> (a2 -> Either a1 b) -> Either a1 b
+  (>>=) (Left x) f = Left x
+  (>>=) (Right x) f = f x
 
 {-
 (In this exercise, there is nothing to do for `Applicative`. We'll define it in terms of `Monad`.)
